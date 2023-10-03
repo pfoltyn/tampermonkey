@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Booker Managers
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  Add managers button
 // @author       Piotr Foltyn
 // @match        http*://booker.eventmapsolutions.com/*
