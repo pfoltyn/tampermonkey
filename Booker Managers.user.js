@@ -6,7 +6,6 @@
 // @author       Piotr Foltyn
 // @match        http*://booker.eventmapsolutions.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=codepen.io
-// @require      https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js
 // @grant        GM_setClipboard
 // ==/UserScript==
 
@@ -30,7 +29,7 @@
         managers = new Map();
         const arr = JSON.parse(msg);
         arr.forEach(function(e) {
-            managers.set(e.OptimeIndex, `${e.Forename} ${e.Surname} ${e.Id}`);
+            managers.set(e.OptimeIndex, `${e.Forename} ${e.Surname} ${e.Id}@cam.ac.uk`);
         });
     }
 
