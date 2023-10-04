@@ -13,7 +13,7 @@
     'use strict';
     var timer_id = null;
     var managers = null;
-	var refresh_cnt = 0
+    var refresh_cnt = 0
 
     function httpGetAsync(theUrl, callback) {
         var xmlHttp = new XMLHttpRequest();
@@ -63,11 +63,11 @@
                 cell.insertBefore(node, cell.children[0]);
             }
         }
-		refresh_cnt++;
-		if (refresh_cnt >= 60) {
-			refresh_cnt = 0;
-			httpGetAsync("https://booker.eventmapsolutions.com/api/staff/getDepartmentManagers", parseManagers);
-		}
+        refresh_cnt++;
+        if (refresh_cnt >= 60) {
+            refresh_cnt = 0;
+            httpGetAsync("https://booker.eventmapsolutions.com/api/staff/getDepartmentManagers", parseManagers);
+        }
     }
 
     window.addEventListener('hashchange', function (e) {
