@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Booker Managers
-// @namespace    http://tampermonkey.net/
-// @version      0.2
+// @namespace    https://github.com/pfoltyn/tampermonkey
+// @version      0.3
 // @description  Add managers button
 // @author       Piotr Foltyn
 // @match        http*://booker.eventmapsolutions.com/*
@@ -13,6 +13,7 @@
     'use strict';
     var timer_id = null;
     var managers = null;
+	var refresh_cnt = 0
 
     function httpGetAsync(theUrl, callback) {
         var xmlHttp = new XMLHttpRequest();
@@ -62,6 +63,11 @@
                 cell.insertBefore(node, cell.children[0]);
             }
         }
+		refresh_cnt++;
+		if (refresh_cnt >= 60) {
+			refresh_cnt = 0;
+			httpGetAsync("https://booker.eventmapsolutions.com/api/staff/getDepartmentManagers", parseManagers);
+		}
     }
 
     window.addEventListener('hashchange', function (e) {
@@ -78,10 +84,8 @@
     });
 
     if (window.location.hash == "#crud/departments") {
-        if (managers == null) {
-            managers = -1;
-            httpGetAsync("https://booker.eventmapsolutions.com/api/staff/getDepartmentManagers", parseManagers);
-        }
+        httpGetAsync("https://booker.eventmapsolutions.com/api/staff/getDepartmentManagers", parseManagers);
+
         if (timer_id == null) {
             timer_id = setInterval(insertManagersButton, 1000);
         }
