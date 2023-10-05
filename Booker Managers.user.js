@@ -48,6 +48,7 @@
 
     function showMessage(msg) {
         if (managers.size == 0) {
+            refresh_cnt = manager_refresh;
             return;
         }
 
