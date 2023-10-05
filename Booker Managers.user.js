@@ -13,9 +13,9 @@
     'use strict';
 
     const api_url = "https://booker.eventmapsolutions.com/api/";
-	const interval = 1000;
-	const manager_refresh = 60;
-	
+    const interval = 1000;
+    const manager_refresh = 60;
+    
     var timer_id = null;
     var managers = new Map();
     var refresh_cnt = 0;
@@ -39,17 +39,17 @@
                 update.set(e.OptimeIndex, [e.Forename, e.Surname, `${e.Id.trim()}@cam.ac.uk`]);
             }
         });
-		if (update.size > 0) {
-			managers = update;
-		} else {
-			refresh_cnt = manager_refresh;
-		}
+        if (update.size > 0) {
+            managers = update;
+        } else {
+            refresh_cnt = manager_refresh;
+        }
     }
 
     function showMessage(msg) {
-		if (managers.size == 0) {
-			return;
-		}
+        if (managers.size == 0) {
+            return;
+        }
 
         var display = "";
         const arr = JSON.parse(msg);
