@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Booker Managers
 // @namespace    https://github.com/pfoltyn/tampermonkey
-// @version      0.4
+// @version      0.5
 // @description  Add managers button
 // @author       Piotr Foltyn
 // @match        http*://booker.eventmapsolutions.com/*
@@ -13,8 +13,11 @@
     'use strict';
 
     const api_url = "https://booker.eventmapsolutions.com/api/";
+	const interval = 1000;
+	const manager_refresh = 60;
+	
     var timer_id = null;
-    var managers = null;
+    var managers = new Map();
     var refresh_cnt = 0;
 
     function httpGetAsync(theUrl, callback) {
@@ -29,16 +32,25 @@
     }
 
     function parseManagers(msg) {
-        managers = new Map();
+        var update = new Map();
         const arr = JSON.parse(msg);
         arr.forEach(function(e) {
             if (e.Id != null && /^\w{2,5}\d{2,6}$/.test(e.Id.trim())) {
-                managers.set(e.OptimeIndex, [e.Forename, e.Surname, `${e.Id.trim()}@cam.ac.uk`]);
+                update.set(e.OptimeIndex, [e.Forename, e.Surname, `${e.Id.trim()}@cam.ac.uk`]);
             }
         });
+		if (update.size > 0) {
+			managers = update;
+		} else {
+			refresh_cnt = manager_refresh;
+		}
     }
 
     function showMessage(msg) {
+		if (managers.size == 0) {
+			return;
+		}
+
         var display = "";
         const arr = JSON.parse(msg);
         arr.forEach(function(e) {
@@ -60,7 +72,6 @@
             var node = document.createElement("button");
             node.classList.add("crudActionButton");
             node.title = "Copy All DMs' Emails";
-            node.style.color = "white";
             node.addEventListener("click", function(e) {
                 var emails = "";
                 for (let value of managers.values()) {
@@ -101,9 +112,9 @@
         }
     }
 
-    function refreshManagers() {
+    function refreshManagers(force = false) {
         refresh_cnt++;
-        if (refresh_cnt >= 60) {
+        if (refresh_cnt >= manager_refresh || force) {
             refresh_cnt = 0;
             httpGetAsync(`${api_url}staff/getDepartmentManagers`, parseManagers);
         }
@@ -124,15 +135,15 @@
             return;
         }
         if (timer_id == null) {
-            timer_id = setInterval(timerCallback, 1000);
+            timer_id = setInterval(timerCallback, interval);
         }
     });
 
     if (window.location.hash == "#crud/departments") {
-        httpGetAsync(`${api_url}staff/getDepartmentManagers`, parseManagers);
+        refreshManagers(/* force */ true);
 
         if (timer_id == null) {
-            timer_id = setInterval(timerCallback, 1000);
+            timer_id = setInterval(timerCallback, interval);
         }
     }
 })();
