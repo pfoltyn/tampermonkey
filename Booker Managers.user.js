@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Booker Managers
 // @namespace    https://github.com/pfoltyn/tampermonkey
-// @version      0.5
+// @version      0.6
 // @description  Add managers button
 // @author       Piotr Foltyn
 // @match        http*://booker.eventmapsolutions.com/*
@@ -13,8 +13,8 @@
     'use strict';
 
     const api_url = "https://booker.eventmapsolutions.com/api/";
-    const interval = 1000;
-    const manager_refresh = 60;
+    const timer_interval = 1000;
+    const refresh_interval = 60;
     
     var timer_id = null;
     var managers = new Map();
@@ -23,15 +23,22 @@
     function httpGetAsync(theUrl, callback) {
         var xmlHttp = new XMLHttpRequest();
         xmlHttp.onreadystatechange = function() {
-            if (xmlHttp.readyState == 4 && xmlHttp.status == 200) {
-                callback(xmlHttp.responseText);
+            if (xmlHttp.readyState === XMLHttpRequest.DONE) {
+                const status = xmlHttp.status;
+                const error = !(status === 0 || (status >= 200 && status < 400));
+                callback(xmlHttp.responseText, error);
             }
         }
         xmlHttp.open("GET", theUrl, true); // true for asynchronous
         xmlHttp.send(null);
     }
 
-    function parseManagers(msg) {
+    function parseManagers(msg, error) {
+        if (error) {
+            refresh_cnt = refresh_interval;
+            return;
+        }
+
         var update = new Map();
         const arr = JSON.parse(msg);
         arr.forEach(function(e) {
@@ -42,13 +49,13 @@
         if (update.size > 0) {
             managers = update;
         } else {
-            refresh_cnt = manager_refresh;
+            refresh_cnt = refresh_interval;
         }
     }
 
-    function showMessage(msg) {
-        if (managers.size == 0) {
-            refresh_cnt = manager_refresh;
+    function showMessage(msg, error) {
+        if (error) {
+            refresh_cnt = refresh_interval;
             return;
         }
 
@@ -69,7 +76,7 @@
 
     function insertEmailAllManagersButton() {
         var div = document.getElementById("bookerDepartmentTable_filter");
-        if (div.children.length == 2) {
+        if (div && div.childElementCount == 2) {
             var node = document.createElement("button");
             node.classList.add("crudActionButton");
             node.title = "Copy All DMs' Emails";
@@ -115,7 +122,7 @@
 
     function refreshManagers(force = false) {
         refresh_cnt++;
-        if (refresh_cnt >= manager_refresh || force) {
+        if (refresh_cnt >= refresh_interval || force) {
             refresh_cnt = 0;
             httpGetAsync(`${api_url}staff/getDepartmentManagers`, parseManagers);
         }
@@ -136,7 +143,7 @@
             return;
         }
         if (timer_id == null) {
-            timer_id = setInterval(timerCallback, interval);
+            timer_id = setInterval(timerCallback, timer_interval);
         }
     });
 
@@ -144,7 +151,7 @@
         refreshManagers(/* force */ true);
 
         if (timer_id == null) {
-            timer_id = setInterval(timerCallback, interval);
+            timer_id = setInterval(timerCallback, timer_interval);
         }
     }
 })();
