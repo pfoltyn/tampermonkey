@@ -42,7 +42,7 @@
         var update = new Map();
         const arr = JSON.parse(msg);
         arr.forEach(function(e) {
-            if (e.Id != null && /^\w{2,5}\d{2,6}$/.test(e.Id.trim())) {
+            if (e.Id != null && /^\w{1,6}\d{1,6}$/.test(e.Id.trim())) {
                 update.set(e.OptimeIndex, [e.Forename, e.Surname, `${e.Id.trim()}@cam.ac.uk`]);
             }
         });
