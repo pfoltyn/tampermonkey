@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Booker Managers
 // @namespace    https://github.com/pfoltyn/tampermonkey
-// @version      0.7
+// @version      0.8
 // @description  Add managers button
 // @author       Piotr Foltyn
 // @match        http*://booker.eventmapsolutions.com/*
@@ -12,10 +12,11 @@
 (function() {
     'use strict';
 
+    const error_msg = "Booker API returned an error. Please reload the page and try again.";
     const api_url = "https://booker.eventmapsolutions.com/api/";
     const timer_interval = 1000;
     const refresh_interval = 60;
-    
+
     var timer_id = null;
     var managers = new Map();
     var refresh_cnt = 0;
@@ -42,9 +43,11 @@
         var update = new Map();
         const arr = JSON.parse(msg);
         arr.forEach(function(e) {
+            var email = `${e.Id}`
             if (e.Id != null && /^\w{1,6}\d{1,6}$/.test(e.Id.trim())) {
-                update.set(e.OptimeIndex, [e.Forename, e.Surname, `${e.Id.trim()}@cam.ac.uk`]);
+                email = `${e.Id.trim()}@cam.ac.uk`
             }
+            update.set(e.OptimeIndex, [e.Forename, e.Surname, email]);
         });
         if (update.size > 0) {
             managers = update;
@@ -56,6 +59,7 @@
     function showMessage(msg, error) {
         if (error) {
             refresh_cnt = refresh_interval;
+            alert(error_msg);
             return;
         }
 
@@ -64,13 +68,16 @@
         arr.forEach(function(e) {
             const man = managers.get(e)
             if (man != undefined) {
-                display += `${man[0]} ${man[1]} ${man[2]}\n`;
+                display += `${man[0]} ${man[1]}: ${man[2]}\n`;
             }
         });
         if (arr.length == 0) {
             display = "No managers selected for that department.";
+        } else if (display.trim().length == 0) {
+            display = error_msg;
+        } else {
+            GM.setClipboard(display);
         }
-        GM.setClipboard(display);
         alert(display);
     }
 
@@ -85,8 +92,13 @@
                 for (let value of managers.values()) {
                     emails += `${value[2]};`;
                 }
-                GM.setClipboard(emails.slice(0, -1));
-                alert("Emails copied to clipboard.");
+                var message = "Emails copied to clipboard.";
+                if (emails.length == 0) {
+                    message = error_msg;
+                } else {
+                    GM.setClipboard(emails.slice(0, -1));
+                }
+                alert(message);
             }, false);
 
             var span = document.createElement("span");
