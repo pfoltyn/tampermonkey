@@ -92,7 +92,9 @@
             node.addEventListener("click", function(e) {
                 var emails = "";
                 for (let value of managers.values()) {
-                    emails += `${value[2]};`;
+                    if (value[2].includes("@") && value[2].includes(".")) {
+                        emails += `${value[2]};`;
+                    }
                 }
                 var message = "Emails copied to clipboard.";
                 if (emails.length == 0) {
