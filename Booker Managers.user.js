@@ -1,15 +1,17 @@
 // ==UserScript==
 // @name         Booker Managers
 // @namespace    https://github.com/pfoltyn/tampermonkey
-// @version      0.8
+// @version      0.9
 // @description  Add managers button
 // @author       Piotr Foltyn
+// @run-at       document-start
 // @match        http*://booker.eventmapsolutions.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=codepen.io
 // @grant        GM_setClipboard
+// @grant        unsafeWindow
 // ==/UserScript==
 
-(function() {
+unsafeWindow.pzf_mod = (function() {
     'use strict';
 
     const error_msg = "Booker API returned an error. Please reload the page and try again.";
@@ -22,7 +24,9 @@
     var requests = new Map();
     var refresh_cnt = 0;
 
-    function httpGetAsync(theUrl, callback) {
+    var obj = {};
+
+    obj.httpGetAsync = function(theUrl, callback) {
         if (requests.has(theUrl)) {
             requests[theUrl].abort();
         }
@@ -128,10 +132,33 @@
                 node.title = "Show Managers";
                 node.addEventListener("click", function(e) {
                     const data_id = e.target.getAttribute("data-id");
-                    httpGetAsync(`${api_url}booker/departmentOwnership/department/${data_id}`, showMessage);
+                    obj.httpGetAsync(`${api_url}booker/departmentOwnership/department/${data_id}`, showMessage);
                 }, false);
                 node.setAttribute("data-id", cell.children[0].getAttribute("data-id"));
                 cell.insertBefore(node, cell.children[0]);
+            }
+        }
+    }
+
+    function insertLiveFilterButton() {
+        var table = document.querySelector("table[aria-describedby='bookerDepartmentTable_info']");
+        if (table) {
+            var cell = table.tHead.rows[0].cells[2];
+            if (cell.childElementCount == 0) {
+                var node = document.createElement("input");
+                node.style.cssText  = "width:50%";
+                node.title = "Filter by Live";
+                node.type = "checkbox";
+                node.checked = true;
+                node.id = "PZF_LiveFilter";
+                node.addEventListener("change", function(e) {
+                    var elem = document.getElementsByName("bookerDepartmentTable_length");
+                    if (elem && elem.length > 0) {
+                        var ev = new Event("change");
+                        elem[0].dispatchEvent(ev);
+                    }
+                }, false);
+                cell.insertBefore(node, cell.firstChild);
             }
         }
     }
@@ -140,13 +167,14 @@
         refresh_cnt++;
         if (refresh_cnt >= refresh_interval || managers.size == 0) {
             refresh_cnt = 0;
-            httpGetAsync(`${api_url}staff/getDepartmentManagers`, parseManagers);
+            obj.httpGetAsync(`${api_url}staff/getDepartmentManagers`, parseManagers);
         }
     }
 
     function timerCallback() {
         insertEmailAllManagersButton();
         insertManagersButtons();
+        insertLiveFilterButton();
         refreshManagers();
     }
 
@@ -170,4 +198,71 @@
             timer_id = setInterval(timerCallback, timer_interval);
         }
     }
+
+    obj.filterDepartmentData = function(data) {
+        var elem = document.getElementById("PZF_LiveFilter");
+        if (elem && !elem.checked) {
+            var idx = data.data.length;
+            while (idx--) {
+                if (data.data[idx].Live == true) {
+                    data.data.splice(idx, 1);
+                }
+            }
+        }
+        const total_len = data.data.length;
+        if (obj.data_start > 0 && data.data.length > obj.data_start) {
+            data.data.splice(0, obj.data_start);
+        }
+        if (obj.data_len > 0 && data.data.length > obj.data_len) {
+            data.data.splice(obj.data_len);
+        }
+        data.recordsFiltered = total_len;
+    }
+
+    obj.addScript = function(text, error) {
+        if (error) {
+            alert(error_msg);
+            return;
+        }
+
+        const data_re = /(bookerDepartmentTable\.DataTable.{1,128}data:function\((\w)\)\{)/g;
+        const replace_data_re = "$1window.pzf_mod.data_len=$2.length;window.pzf_mod.data_start=$2.start;";
+        text = text.replace(data_re, replace_data_re);
+
+        const find_re = /\w\.length(.{1,32}bookerDepartmentTable_filter.{1,128})\w\.start(.{1,16}dataSrc:function\((\w)\)\{)/g;
+        const replace_re = "999$10$2 window.pzf_mod.filterDepartmentData($3);";
+        text = text.replace(find_re, replace_re);
+
+        var newScript = document.createElement('script');
+        newScript.type = "text/javascript";
+        newScript.textContent = text;
+        var head = document.getElementsByTagName('head')[0];
+        head.appendChild(newScript);
+    }
+
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(({ addedNodes }) => {
+            addedNodes.forEach(node => {
+                // For each added script tag
+                if (node.nodeType === 1 && node.tagName === "SCRIPT") {
+                    const src = node.src || "";
+                    const type = node.type;
+                    // If the src is inside your blacklist
+                    if(src.search(/dist\/booker.+\.js/) != -1) {
+                        node.removeAttribute("src");
+                        node.type = "text/javascript";
+                        node.textContent = `window.pzf_mod.httpGetAsync("${src}", window.pzf_mod.addScript);`;
+                    }
+                }
+            })
+        })
+    });
+
+    // Starts the monitoring
+    observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+    });
+
+    return obj;
 })();
