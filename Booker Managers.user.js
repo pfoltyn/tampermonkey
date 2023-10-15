@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Booker Managers
 // @namespace    https://github.com/pfoltyn/tampermonkey
-// @version      0.9
+// @version      1.0
 // @description  Add managers button
 // @author       Piotr Foltyn
 // @run-at       document-start
@@ -17,10 +17,12 @@ unsafeWindow.pzf_mod = (function() {
     const error_msg = "Booker API returned an error. Please reload the page and try again.";
     const api_url = "https://booker.eventmapsolutions.com/api/";
     const timer_interval = 1000;
-    const refresh_interval = 60;
+    const refresh_interval = 5 * 60;
 
     var timer_id = null;
     var managers = new Map();
+    var terms = new Array();
+    var current_term = "";
     var requests = new Map();
     var refresh_cnt = 0;
 
@@ -63,6 +65,35 @@ unsafeWindow.pzf_mod = (function() {
         }
     }
 
+    function parseTerms(msg, error) {
+        if (error) {
+            return;
+        }
+
+        var term_name = "";
+        var update = new Array();
+        const now = Date.now();
+        const arr = JSON.parse(msg);
+        for (let idx = 0; idx < arr.length; ++idx) {
+            var e = arr[idx];
+            const end = new Date(e.EndDate);
+            if (end < now) {
+                continue;
+            }
+            const start = new Date(e.StartDate);
+            if (start > now) {
+                continue;
+            }
+            term_name = e.Id;
+            update = e.DepartmentsAllowingBookings;
+            break;
+        }
+        if (update.length > 0) {
+            terms = update;
+            current_term = term_name;
+        }
+    }
+
     function showMessage(msg, error) {
         if (error) {
             alert(error_msg);
@@ -87,9 +118,9 @@ unsafeWindow.pzf_mod = (function() {
         alert(display);
     }
 
-    function insertEmailAllManagersButton() {
+    function insertEmailAllManagersButton(order) {
         var div = document.getElementById("bookerDepartmentTable_filter");
-        if (div && div.childElementCount == 2) {
+        if (div && div.childElementCount == order) {
             var node = document.createElement("button");
             node.classList.add("crudActionButton");
             node.title = "Copy All DMs' Emails";
@@ -140,42 +171,66 @@ unsafeWindow.pzf_mod = (function() {
         }
     }
 
-    function insertLiveFilterButton() {
-        var table = document.querySelector("table[aria-describedby='bookerDepartmentTable_info']");
-        if (table) {
-            var cell = table.tHead.rows[0].cells[2];
-            if (cell.childElementCount == 0) {
-                var node = document.createElement("input");
-                node.style.cssText  = "width:50%";
-                node.title = "Filter by Live";
-                node.type = "checkbox";
-                node.checked = true;
-                node.id = "PZF_LiveFilter";
-                node.addEventListener("change", function(e) {
-                    var elem = document.getElementsByName("bookerDepartmentTable_length");
-                    if (elem && elem.length > 0) {
-                        var ev = new Event("change");
-                        elem[0].dispatchEvent(ev);
-                    }
-                }, false);
-                cell.insertBefore(node, cell.firstChild);
-            }
+    function insertFilterButton(order, title, txt, id) {
+        var div = document.getElementById("bookerDepartmentTable_filter");
+        if (div && div.childElementCount == order) {
+            var node = document.createElement("input");
+            node.style.cssText = "width:1em !important; height:1em !important";
+            node.type = "checkbox";
+            node.checked = true;
+            node.id = id;
+
+            var span = document.createElement("span");
+            span.classList.add("hidden-xs");
+            span.textContent = txt;
+
+            var button = document.createElement("button");
+            button.title = title;
+            button.classList.add("crudActionButton");
+            button.addEventListener("click", function(e) {
+                var elem = document.getElementById(id);
+                if (e.target != elem) {
+                    elem.checked = !elem.checked;
+                }
+
+                elem = document.getElementsByName("bookerDepartmentTable_length");
+                if (elem && elem.length > 0) {
+                    var ev = new Event("change");
+                    elem[0].dispatchEvent(ev);
+                }
+            }, false);
+
+
+            button.appendChild(span);
+            button.appendChild(node);
+            div.appendChild(button);
         }
     }
 
-    function refreshManagers() {
+    function refreshData() {
         refresh_cnt++;
-        if (refresh_cnt >= refresh_interval || managers.size == 0) {
+
+        const update_all = refresh_cnt >= refresh_interval;
+        const update_managers = managers.size == 0 || update_all;
+        const update_terms = terms.length == 0 || update_all;
+        
+        if (update_all) {
             refresh_cnt = 0;
+        }
+        if (update_managers) {
             obj.httpGetAsync(`${api_url}staff/getDepartmentManagers`, parseManagers);
+        }
+        if (update_terms) {
+            obj.httpGetAsync(`${api_url}terms`, parseTerms);
         }
     }
 
     function timerCallback() {
-        insertEmailAllManagersButton();
+        insertFilterButton(2, "Filter by Live", "Is LIve", "PZF_LiveFilter");
+        insertFilterButton(3, "Filter by Current Term Bookable", current_term, "PZF_TermFilter");
+        insertEmailAllManagersButton(4);
         insertManagersButtons();
-        insertLiveFilterButton();
-        refreshManagers();
+        refreshData();
     }
 
     window.addEventListener('hashchange', function (e) {
@@ -192,7 +247,7 @@ unsafeWindow.pzf_mod = (function() {
     });
 
     if (window.location.hash == "#crud/departments") {
-        refreshManagers();
+        refreshData();
 
         if (timer_id == null) {
             timer_id = setInterval(timerCallback, timer_interval);
@@ -205,6 +260,15 @@ unsafeWindow.pzf_mod = (function() {
             var idx = data.data.length;
             while (idx--) {
                 if (data.data[idx].Live == true) {
+                    data.data.splice(idx, 1);
+                }
+            }
+        }
+        elem = document.getElementById("PZF_TermFilter");
+        if (elem && !elem.checked) {
+            var idx = data.data.length;
+            while (idx--) {
+                if (terms.includes(data.data[idx].OptimeIndex)) {
                     data.data.splice(idx, 1);
                 }
             }
