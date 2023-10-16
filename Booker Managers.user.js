@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Booker Managers
 // @namespace    https://github.com/pfoltyn/tampermonkey
-// @version      1.0
+// @version      1.1
 // @description  Add managers button
 // @author       Piotr Foltyn
 // @run-at       document-start
@@ -19,14 +19,13 @@ unsafeWindow.pzf_mod = (function() {
     const timer_interval = 1000;
     const refresh_interval = 5 * 60;
 
+    var obj = {};
+
     var timer_id = null;
     var managers = new Map();
     var terms = new Array();
-    var current_term = "";
     var requests = new Map();
     var refresh_cnt = 0;
-
-    var obj = {};
 
     obj.httpGetAsync = function(theUrl, callback) {
         if (requests.has(theUrl)) {
@@ -53,13 +52,13 @@ unsafeWindow.pzf_mod = (function() {
 
         var update = new Map();
         const arr = JSON.parse(msg);
-        arr.forEach(function(e) {
+        for (let e of arr) {
             var email = `${e.Id}`
             if (e.Id != null && /^\w{1,6}\d{1,6}$/.test(e.Id.trim())) {
                 email = `${e.Id.trim()}@cam.ac.uk`
             }
             update.set(e.OptimeIndex, [e.Forename, e.Surname, email]);
-        });
+        }
         if (update.size > 0) {
             managers = update;
         }
@@ -74,8 +73,7 @@ unsafeWindow.pzf_mod = (function() {
         var update = new Array();
         const now = Date.now();
         const arr = JSON.parse(msg);
-        for (let idx = 0; idx < arr.length; ++idx) {
-            var e = arr[idx];
+        for (let e of arr) {
             const end = new Date(e.EndDate);
             if (end < now) {
                 continue;
@@ -90,7 +88,6 @@ unsafeWindow.pzf_mod = (function() {
         }
         if (update.length > 0) {
             terms = update;
-            current_term = term_name;
         }
     }
 
@@ -102,12 +99,12 @@ unsafeWindow.pzf_mod = (function() {
 
         var display = "";
         const arr = JSON.parse(msg);
-        arr.forEach(function(e) {
+        for (let e of arr) {
             const man = managers.get(e)
             if (man != undefined) {
                 display += `${man[0]} ${man[1]}: ${man[2]}\n`;
             }
-        });
+        }
         if (arr.length == 0) {
             display = "No managers selected for that department.";
         } else if (display.trim().length == 0) {
@@ -126,12 +123,14 @@ unsafeWindow.pzf_mod = (function() {
             node.title = "Copy All DMs' Emails";
             node.addEventListener("click", function(e) {
                 var emails = "";
+                var cnt = 0;
                 for (let value of managers.values()) {
                     if (value[2].includes("@") && value[2].includes(".")) {
                         emails += `${value[2]};`;
+                        cnt++;
                     }
                 }
-                var message = "Emails copied to clipboard.";
+                var message = `${cnt} email addresses copied to clipboard.`;
                 if (emails.length == 0) {
                     message = error_msg;
                 } else {
@@ -155,7 +154,7 @@ unsafeWindow.pzf_mod = (function() {
 
     function insertManagersButtons() {
         var table = document.getElementById("bookerDepartmentTable");
-        for (var i = 0, row; row = table.rows[i]; i++) {
+        for (let row of table.rows) {
             var cell = row.cells[row.cells.length - 1];
             if (cell.childElementCount == 2) {
                 var node = document.createElement("i");
@@ -226,8 +225,8 @@ unsafeWindow.pzf_mod = (function() {
     }
 
     function timerCallback() {
-        insertFilterButton(2, "Filter by Live", "Is Live", "PZF_LiveFilter");
-        insertFilterButton(3, "Filter by Current Term Bookable", "Current Term Bookable", "PZF_TermFilter");
+        insertFilterButton(2, "Filter by Live", "Live?", "PZF_LiveFilter");
+        insertFilterButton(3, "Filter by Current Term Bookable", "Current Term Bookable?", "PZF_TermFilter");
         insertEmailAllManagersButton(4);
         insertManagersButtons();
         refreshData();
@@ -273,6 +272,7 @@ unsafeWindow.pzf_mod = (function() {
                 }
             }
         }
+
         const total_len = data.data.length;
         if (obj.data_start > 0 && data.data.length > obj.data_start) {
             data.data.splice(0, obj.data_start);
