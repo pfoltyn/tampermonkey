@@ -226,8 +226,8 @@ unsafeWindow.pzf_mod = (function() {
     }
 
     function timerCallback() {
-        insertFilterButton(2, "Filter by Live", "Is LIve", "PZF_LiveFilter");
-        insertFilterButton(3, "Filter by Current Term Bookable", current_term, "PZF_TermFilter");
+        insertFilterButton(2, "Filter by Live", "Is Live", "PZF_LiveFilter");
+        insertFilterButton(3, "Filter by Current Term Bookable", "Current Term Bookable", "PZF_TermFilter");
         insertEmailAllManagersButton(4);
         insertManagersButtons();
         refreshData();
