@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Booker Managers
 // @namespace    https://github.com/pfoltyn/tampermonkey
-// @version      1.1
+// @version      1.2
 // @description  Add managers button
 // @author       Piotr Foltyn
 // @run-at       document-start
