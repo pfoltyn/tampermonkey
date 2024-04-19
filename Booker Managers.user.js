@@ -24,6 +24,7 @@ unsafeWindow.pzf_mod = (function() {
     var timer_id = null;
     var managers = new Map();
     var terms = new Array();
+    var rooms = new Map();
     var requests = new Map();
     var refresh_cnt = 0;
 
@@ -91,6 +92,24 @@ unsafeWindow.pzf_mod = (function() {
         }
     }
 
+    function parseRooms(msg, error) {
+        if (error) {
+            return;
+        }
+
+        var update = new Map();
+        const arr = JSON.parse(msg);
+        for (let e in arr) {
+            if (arr[e].OptimeIndex != undefined && arr[e].RoomType != undefined) {
+                update.set(arr[e].OptimeIndex, arr[e].RoomType);
+            }
+        }
+
+        if (update.size > 0) {
+            rooms = update;
+        }
+    }
+
     function showMessage(msg, error) {
         if (error) {
             alert(error_msg);
@@ -154,24 +173,26 @@ unsafeWindow.pzf_mod = (function() {
 
     function insertManagersButtons() {
         var table = document.getElementById("bookerDepartmentTable");
-        for (let row of table.rows) {
-            var cell = row.cells[row.cells.length - 1];
-            if (cell.childElementCount == 2) {
-                var node = document.createElement("i");
-                node.classList.add("osci", "osci-email", "crudEmailIcon");
-                node.title = "Show Managers";
-                node.addEventListener("click", function(e) {
-                    const data_id = e.target.getAttribute("data-id");
-                    obj.httpGetAsync(`${api_url}booker/departmentOwnership/department/${data_id}`, showMessage);
-                }, false);
-                node.setAttribute("data-id", cell.children[0].getAttribute("data-id"));
-                cell.insertBefore(node, cell.children[0]);
+        if (table) {
+            for (let row of table.rows) {
+                var cell = row.cells[row.cells.length - 1];
+                if (cell.childElementCount == 2) {
+                    var node = document.createElement("i");
+                    node.classList.add("osci", "osci-email", "crudEmailIcon");
+                    node.title = "Show Managers";
+                    node.addEventListener("click", function(e) {
+                        const data_id = e.target.getAttribute("data-id");
+                        obj.httpGetAsync(`${api_url}booker/departmentOwnership/department/${data_id}`, showMessage);
+                    }, false);
+                    node.setAttribute("data-id", cell.children[0].getAttribute("data-id"));
+                    cell.insertBefore(node, cell.children[0]);
+                }
             }
         }
     }
 
-    function insertFilterButton(order, title, txt, id) {
-        var div = document.getElementById("bookerDepartmentTable_filter");
+    function insertFilterButton(order, title, txt, id, table) {
+        var div = document.getElementById(`booker${table}Table_filter`);
         if (div && div.childElementCount == order) {
             var node = document.createElement("input");
             node.style.cssText = "width:1em !important; height:1em !important";
@@ -192,7 +213,7 @@ unsafeWindow.pzf_mod = (function() {
                     elem.checked = !elem.checked;
                 }
 
-                elem = document.getElementsByName("bookerDepartmentTable_length");
+                elem = document.getElementsByName(`booker${table}Table_length`);
                 if (elem && elem.length > 0) {
                     var ev = new Event("change");
                     elem[0].dispatchEvent(ev);
@@ -212,28 +233,37 @@ unsafeWindow.pzf_mod = (function() {
         const update_all = refresh_cnt >= refresh_interval;
         const update_managers = managers.size == 0 || update_all;
         const update_terms = terms.length == 0 || update_all;
+        const update_rooms = rooms.size == 0 || update_all;
         
         if (update_all) {
             refresh_cnt = 0;
         }
         if (update_managers) {
             obj.httpGetAsync(`${api_url}staff/getDepartmentManagers`, parseManagers);
-        }
+        } 
         if (update_terms) {
             obj.httpGetAsync(`${api_url}terms`, parseTerms);
+        }
+        if (update_rooms) {
+            obj.httpGetAsync(`${api_url}rooms/getRoomSelect`, parseRooms);
         }
     }
 
     function timerCallback() {
-        insertFilterButton(2, "Filter by Live", "Live?", "PZF_LiveFilter");
-        insertFilterButton(3, "Filter by Current Term Bookable", "Current Term Bookable?", "PZF_TermFilter");
+        // Room tab
+        insertFilterButton(3, "Filter by Hybrid", "Hybrid?", "PZF_HybridFilter", "Room");
+
+        // Department tab
+        insertFilterButton(2, "Filter by Live", "Live?", "PZF_LiveFilter", "Department");
+        insertFilterButton(3, "Filter by Current Term Bookable", "Current Term Bookable?", "PZF_TermFilter", "Department");
         insertEmailAllManagersButton(4);
         insertManagersButtons();
         refreshData();
     }
 
     window.addEventListener('hashchange', function (e) {
-        if (window.location.hash != "#crud/departments") {
+        if ((window.location.hash != "#crud/departments") &&
+            (window.location.hash != "#crud/rooms")) {
             if (timer_id != null) {
                 clearInterval(timer_id);
                 timer_id = null;
@@ -245,7 +275,8 @@ unsafeWindow.pzf_mod = (function() {
         }
     });
 
-    if (window.location.hash == "#crud/departments") {
+    if ((window.location.hash == "#crud/departments") ||
+        (window.location.hash == "#crud/rooms")) {
         refreshData();
 
         if (timer_id == null) {
@@ -283,19 +314,49 @@ unsafeWindow.pzf_mod = (function() {
         data.recordsFiltered = total_len;
     }
 
+    obj.filterRoomData = function(data) {
+        var elem = document.getElementById("PZF_HybridFilter");
+        if (elem && !elem.checked) {
+            var idx = data.data.length;
+            while (idx--) {
+                var room = rooms.get(data.data[idx].OptimeIndex);
+                if (room != undefined && !room.includes("Hybrid")) {
+                    data.data.splice(idx, 1);
+                }
+            }
+        }
+
+        const total_len = data.data.length;
+        if (obj.data_start > 0 && data.data.length > obj.data_start) {
+            data.data.splice(0, obj.data_start);
+        }
+        if (obj.data_len > 0 && data.data.length > obj.data_len) {
+            data.data.splice(obj.data_len);
+        }
+        data.recordsFiltered = total_len;
+    }
+
     obj.addScript = function(text, error) {
         if (error) {
             alert(error_msg);
             return;
         }
 
-        const data_re = /(bookerDepartmentTable\.DataTable.{1,128}data:function\((\w)\)\{)/g;
-        const replace_data_re = "$1window.pzf_mod.data_len=$2.length;window.pzf_mod.data_start=$2.start;";
-        text = text.replace(data_re, replace_data_re);
+        const dep_data_re = /(bookerDepartmentTable\.DataTable.{1,128}data:function\((\w)\)\{)/g;
+        const replace_dep_data_re = "$1window.pzf_mod.data_len=$2.length;window.pzf_mod.data_start=$2.start;";
+        text = text.replace(dep_data_re, replace_dep_data_re);
 
-        const find_re = /\w\.length(.{1,32}bookerDepartmentTable_filter.{1,128})\w\.start(.{1,16}dataSrc:function\((\w)\)\{)/g;
-        const replace_re = "999$10$2 window.pzf_mod.filterDepartmentData($3);";
-        text = text.replace(find_re, replace_re);
+        const dep_find_re = /\w\.length(.{1,32}bookerDepartmentTable_filter.{1,128})\w\.start(.{1,16}dataSrc:function\((\w)\)\{)/g;
+        const replace_dep_find_re = "999$10$2 window.pzf_mod.filterDepartmentData($3);";
+        text = text.replace(dep_find_re, replace_dep_find_re);
+
+        const room_data_re = /(bookerRoomTable\.DataTable.{1,128}data:function\((\w)\)\{)/g;
+        const replace_room_data_re = "$1window.pzf_mod.data_len=$2.length;window.pzf_mod.data_start=$2.start;";
+        text = text.replace(room_data_re, replace_room_data_re);
+
+        const room_find_re = /\w\.length(.{1,32}bookerRoomTable_filter.{1,128})\w\.start(.{1,16}dataSrc:function\((\w)\)\{)/g;
+        const replace_room_find_re = "9999$10$2 window.pzf_mod.filterRoomData($3);";
+        text = text.replace(room_find_re, replace_room_find_re);
 
         var newScript = document.createElement('script');
         newScript.type = "text/javascript";
@@ -312,7 +373,7 @@ unsafeWindow.pzf_mod = (function() {
                     const src = node.src || "";
                     const type = node.type;
                     // If the src is inside your blacklist
-                    if(src.search(/dist\/booker.+\.js/) != -1) {
+                    if (src.search(/dist\/booker.+\.js/) != -1) {
                         node.removeAttribute("src");
                         node.type = "text/javascript";
                         node.textContent = `window.pzf_mod.httpGetAsync("${src}", window.pzf_mod.addScript);`;
